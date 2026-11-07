@@ -1,0 +1,91 @@
+/* Moeda de Bitcoin 3D girando — CSS puro, sem dependências */
+.scene {
+  --size: 200px;
+  --thickness: 16px;
+  --speed: 4s;
+  width: var(--size);
+  height: var(--size);
+  perspective: calc(var(--size) * 5);
+  display: inline-block;
+}
+
+.coin {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: spin var(--speed) linear infinite;
+}
+
+.scene:hover .coin {
+  animation-play-state: paused;
+}
+
+/* Bordas: camadas empilhadas no eixo Z formam a espessura da moeda */
+.edge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #8a5a00, #d9900f 30%, #ffcf5c 50%, #d9900f 70%, #8a5a00);
+  transform: translateZ(var(--z));
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 30% 25%, #ffe8a3 0%, #f7b733 35%, #f7931a 60%, #c46a00 100%);
+  box-shadow:
+    inset 0 0 0 calc(var(--size) * 0.04) #e08a12,
+    inset 0 0 0 calc(var(--size) * 0.055) #ffd27a,
+    inset 0 0 calc(var(--size) * 0.12) rgba(120, 60, 0, 0.55);
+}
+
+.front {
+  transform: translateZ(calc(var(--thickness) / 2));
+}
+
+.back {
+  transform: rotateY(180deg) translateZ(calc(var(--thickness) / 2));
+}
+
+.logo {
+  width: 62%;
+  height: 62%;
+  filter: drop-shadow(0 calc(var(--size) * 0.01) 0 rgba(120, 60, 0, 0.6));
+}
+
+/* Brilho que varre a face */
+.face::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+  background-size: 250% 100%;
+  animation: shine var(--speed) linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+@keyframes shine {
+  from { background-position: 150% 0; }
+  to { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coin,
+  .face::after {
+    animation: none;
+  }
+}
