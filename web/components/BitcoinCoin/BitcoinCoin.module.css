@@ -1,33 +1,20 @@
-/* Moeda de Bitcoin 3D girando — CSS puro, sem dependências */
 .scene {
-  --size: 200px;
-  --thickness: 16px;
-  --speed: 4s;
+  --size: 220px;
+  --thickness: 15px;
+  --speed: 3s;
+  position: relative;
+  display: inline-block;
   width: var(--size);
   height: var(--size);
   perspective: calc(var(--size) * 5);
-  display: inline-block;
-  position: relative;
 }
 
-/* Flutuação: sobe e desce suavemente */
+/* Flutuação */
 .float {
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  animation: float 3.5s ease-in-out infinite;
-}
-
-/* Sombra no "chão" que acompanha a flutuação */
-.shadow {
-  position: absolute;
-  left: 15%;
-  right: 15%;
-  bottom: calc(var(--size) * -0.22);
-  height: calc(var(--size) * 0.1);
-  border-radius: 50%;
-  background: radial-gradient(rgba(0, 0, 0, 0.45), transparent 70%);
-  animation: shadow 3.5s ease-in-out infinite;
+  animation: float 4s ease-in-out infinite;
 }
 
 .coin {
@@ -35,21 +22,18 @@
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
-  /* "meio rodando": balança de um lado pro outro.
-     Para girar 360° sem parar, troque por: spin var(--speed) linear infinite */
+  /* Balança. Para girar 360°: animation: spin var(--speed) linear infinite; */
   animation: sway var(--speed) ease-in-out infinite alternate;
 }
 
-.scene:hover .coin {
-  animation-play-state: paused;
-}
-
-/* Bordas: camadas empilhadas no eixo Z formam a espessura da moeda */
+/* Borda serrilhada: camadas empilhadas com estrias */
 .edge {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: linear-gradient(90deg, #8a5a00, #d9900f 30%, #ffcf5c 50%, #d9900f 70%, #8a5a00);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 30%, rgba(255, 240, 200, 0.35) 50%, transparent 70%, rgba(0, 0, 0, 0.5)),
+    repeating-conic-gradient(#7a4300 0deg 1.2deg, #f3b13c 1.2deg 2.4deg);
   transform: translateZ(var(--z));
 }
 
@@ -57,75 +41,60 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   backface-visibility: hidden;
-  background:
-    radial-gradient(circle at 30% 25%, #ffe8a3 0%, #f7b733 35%, #f7931a 60%, #c46a00 100%);
-  box-shadow:
-    inset 0 0 0 calc(var(--size) * 0.04) #e08a12,
-    inset 0 0 0 calc(var(--size) * 0.055) #ffd27a,
-    inset 0 0 calc(var(--size) * 0.12) rgba(120, 60, 0, 0.55);
 }
 
-.front {
-  transform: translateZ(calc(var(--thickness) / 2));
+.faceSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.back {
-  transform: rotateY(180deg) translateZ(calc(var(--thickness) / 2));
-}
+.front { transform: translateZ(calc(var(--thickness) / 2)); }
+.back { transform: rotateY(180deg) translateZ(calc(var(--thickness) / 2)); }
 
-.logo {
-  width: 62%;
-  height: 62%;
-  filter: drop-shadow(0 calc(var(--size) * 0.01) 0 rgba(120, 60, 0, 0.6));
-}
-
-/* Brilho que varre a face */
+/* Reflexo que corre pela face junto com o balanço */
 .face::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
-  background-size: 250% 100%;
-  animation: shine var(--speed) linear infinite;
+  background: linear-gradient(110deg, transparent 38%, rgba(255, 250, 225, 0.3) 47%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 250, 225, 0.3) 53%, transparent 62%);
+  background-size: 300% 100%;
+  animation: glint var(--speed) ease-in-out infinite alternate;
   pointer-events: none;
 }
 
-@keyframes spin {
-  from { transform: rotateY(0deg); }
-  to { transform: rotateY(360deg); }
+.shadow {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: calc(var(--size) * -0.2);
+  height: calc(var(--size) * 0.09);
+  border-radius: 50%;
+  background: radial-gradient(rgba(0, 0, 0, 0.5), transparent 70%);
+  animation: shadow 4s ease-in-out infinite;
 }
 
+@keyframes spin { to { transform: rotateY(360deg); } }
 @keyframes sway {
-  from { transform: rotateY(-40deg) rotateX(8deg); }
-  to { transform: rotateY(40deg) rotateX(-8deg); }
+  from { transform: rotateY(-38deg) rotateX(10deg); }
+  to { transform: rotateY(38deg) rotateX(-6deg); }
 }
-
 @keyframes float {
-  0%, 100% { transform: translateY(0) rotateZ(-4deg); }
-  50% { transform: translateY(calc(var(--size) * -0.12)) rotateZ(4deg); }
+  0%, 100% { transform: translateY(0) rotateZ(-3deg); }
+  50% { transform: translateY(calc(var(--size) * -0.1)) rotateZ(3deg); }
 }
-
 @keyframes shadow {
   0%, 100% { transform: scale(1); opacity: 0.9; }
-  50% { transform: scale(0.7); opacity: 0.5; }
+  50% { transform: scale(0.75); opacity: 0.5; }
 }
-
-@keyframes shine {
-  from { background-position: 150% 0; }
-  to { background-position: -100% 0; }
+@keyframes glint {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .coin,
-  .float,
-  .shadow,
-  .face::after {
-    animation: none;
-  }
+  .coin, .float, .shadow, .face::after { animation: none; }
 }
