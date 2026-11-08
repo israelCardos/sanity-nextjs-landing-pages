@@ -5,11 +5,12 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(var(--size) * 0.32);
+  gap: 12px;
 }
 
 .scene {
   position: relative;
+  margin-bottom: calc(var(--size) * 0.22); /* espaço para a sombra */
   display: inline-block;
   width: var(--size);
   height: var(--size);
@@ -117,14 +118,62 @@
   to { background-position: 0% 0; }
 }
 
-/* Pulo da moeda ao jogar cara ou coroa */
-.tossing { animation: toss 3.4s cubic-bezier(.25, .8, .3, 1); }
+/* Ao jogar: a moeda pula e a câmera inclina rápido e de leve,
+   depois volta ao normal conforme a moeda desacelera */
+.tossing { animation: toss var(--spin) linear; }
 
 @keyframes toss {
-  0% { transform: translateY(0) scale(1); }
-  18% { transform: translateY(calc(var(--size) * -0.22)) scale(1.06); }
-  60% { transform: translateY(calc(var(--size) * -0.06)) scale(1.02); }
-  100% { transform: translateY(0) scale(1); }
+  0% {
+    transform: none;
+    animation-timing-function: cubic-bezier(.2, .8, .3, 1);
+  }
+  7% {
+    transform: translateY(calc(var(--size) * -0.18)) rotateX(20deg) rotateZ(-5deg) scale(1.06);
+    animation-timing-function: cubic-bezier(.45, 0, .25, 1);
+  }
+  100% { transform: none; }
+}
+
+/* Câmera se aproxima (perspectiva mais forte) e volta */
+.camera { animation: camera var(--spin) linear; }
+
+@keyframes camera {
+  0% {
+    perspective: calc(var(--size) * 5);
+    animation-timing-function: cubic-bezier(.2, .8, .3, 1);
+  }
+  7% {
+    perspective: calc(var(--size) * 2.4);
+    animation-timing-function: cubic-bezier(.45, 0, .25, 1);
+  }
+  100% { perspective: calc(var(--size) * 5); }
+}
+
+/* Mensagem de resultado */
+.result {
+  margin: 0;
+  min-height: 1.6em; /* reserva o espaço para a página não pular */
+  font: 400 1.05rem/1.5 Georgia, 'Times New Roman', serif;
+  color: #d9c8a2;
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+.result strong {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.win strong { color: #ffd166; }
+.lose strong { color: #ff7a6b; }
+
+.win,
+.lose { animation: pop 0.45s cubic-bezier(.2, 1.4, .4, 1); }
+
+@keyframes pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.92); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Botões Cara / Coroa */
@@ -169,6 +218,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tossing,
+  .tossing, .camera, .win, .lose,
   .coin, .float, .shadow, .face::after { animation: none; }
 }

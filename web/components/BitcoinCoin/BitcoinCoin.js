@@ -123,6 +123,9 @@ export default function BitcoinCoin ({
   const drag = useRef(null)
   const [side, setSide] = useState('coroa') // coroa = Bitcoin, cara = retrato
   const [spinning, setSpinning] = useState(false)
+  const [pick, setPick] = useState(null) // lado que a pessoa escolheu
+  const [outcome, setOutcome] = useState(null) // {win, side} depois que a moeda para
+  const sceneRef = useRef(null)
   const spinTimer = useRef(null)
   useEffect(() => () => clearTimeout(spinTimer.current), [])
 
@@ -239,35 +242,44 @@ export default function BitcoinCoin ({
       angle.current += 180 * turns * sign
       setFlip(angle.current, `transform ${0.8 + turns * 0.2}s cubic-bezier(.2, 1.3, .4, 1)`)
       setSide(sideOf(angle.current))
+      setOutcome(null)
+      setPick(null)
     } else {
       setFlip(angle.current, 'transform .5s cubic-bezier(.3, 1.4, .5, 1)')
     }
   }
 
-  // 3) Botões: a moeda sobe girando forte e vai desacelerando até parar no lado escolhido
-  const SPIN_TURNS = 6 // voltas completas
-  const SPIN_TIME = 3400 // ms
+  // 3) Cara ou coroa: a pessoa escolhe, a moeda gira e cai num lado aleatório
+  const SPIN_TURNS = 8 // voltas completas
+  const SPIN_TIME = 4600 // ms (o CSS usa o mesmo valor via --spin)
+
+  const restart = (el, className) => {
+    if (!el) return
+    el.classList.remove(className)
+    void el.offsetWidth // reinicia a animação
+    el.classList.add(className)
+  }
 
   const toss = wanted => {
     if (spinning) return
+    const result = Math.random() < 0.5 ? 'cara' : 'coroa'
     let next = angle.current + 360 * SPIN_TURNS
-    if (sideOf(next) !== wanted) next += 180
+    if (sideOf(next) !== result) next += 180
     angle.current = next
-    // começa rápido e desacelera suave, sem passar do ponto (para exatamente no lado)
+    // começa rápido e desacelera suave, parando exatamente no lado sorteado
     setFlip(next, `transform ${SPIN_TIME}ms cubic-bezier(.33, 1, .68, 1)`)
+    setPick(wanted)
+    setOutcome(null)
     setSpinning(true)
 
-    const el = tossRef.current
-    if (el) {
-      el.classList.remove(styles.tossing)
-      void el.offsetWidth // reinicia a animação do pulo
-      el.classList.add(styles.tossing)
-    }
+    restart(tossRef.current, styles.tossing) // pulo + inclinação da câmera
+    restart(sceneRef.current, styles.camera) // câmera aproxima e volta
 
     clearTimeout(spinTimer.current)
     spinTimer.current = setTimeout(() => {
       setSpinning(false)
-      setSide(wanted)
+      setSide(result)
+      setOutcome({win: result === wanted, side: result})
     }, SPIN_TIME)
   }
 
@@ -279,8 +291,12 @@ export default function BitcoinCoin ({
   }
 
   return (
-    <div className={styles.root} style={{'--size': `${size}px`, '--thickness': `${t}px`, '--speed': `${speed}s`}}>
+    <div
+      className={styles.root}
+      style={{'--size': `${size}px`, '--thickness': `${t}px`, '--speed': `${speed}s`, '--spin': `${SPIN_TIME}ms`}}
+    >
       <div
+        ref={sceneRef}
         className={styles.scene}
         role='img'
         aria-label={`Moeda mostrando ${side}. Deslize rápido para virar.`}
@@ -306,13 +322,23 @@ export default function BitcoinCoin ({
       </div>
 
       {showButtons && (
+        <p className={`${styles.result} ${outcome ? (outcome.win ? styles.win : styles.lose) : ''}`} aria-live='polite'>
+          {outcome && (
+            <React.Fragment>
+              <strong>{outcome.win ? 'Acertou!' : 'Errou!'}</strong> Deu {outcome.side}.
+            </React.Fragment>
+          )}
+        </p>
+      )}
+
+      {showButtons && (
         <div className={`${styles.buttons} ${spinning ? styles.busy : ''}`} aria-busy={spinning}>
           <button type='button' className={styles.button} disabled={spinning}
-            aria-pressed={!spinning && side === 'cara'} onClick={() => toss('cara')}>
+            aria-pressed={!spinning && pick === 'cara'} onClick={() => toss('cara')}>
             Cara
           </button>
           <button type='button' className={styles.button} disabled={spinning}
-            aria-pressed={!spinning && side === 'coroa'} onClick={() => toss('coroa')}>
+            aria-pressed={!spinning && pick === 'coroa'} onClick={() => toss('coroa')}>
             Coroa
           </button>
         </div>
