@@ -118,20 +118,27 @@
 }
 
 /* Pulo da moeda ao jogar cara ou coroa */
-.tossing { animation: toss 1.3s cubic-bezier(.3, 0, .3, 1); }
+.tossing { animation: toss 3.4s cubic-bezier(.25, .8, .3, 1); }
 
 @keyframes toss {
   0% { transform: translateY(0) scale(1); }
-  40% { transform: translateY(calc(var(--size) * -0.45)) scale(1.08); }
-  80% { transform: translateY(0) scale(1); }
-  90% { transform: translateY(calc(var(--size) * -0.04)); }
-  100% { transform: translateY(0); }
+  18% { transform: translateY(calc(var(--size) * -0.22)) scale(1.06); }
+  60% { transform: translateY(calc(var(--size) * -0.06)) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
 }
 
 /* Botões Cara / Coroa */
 .buttons {
   display: flex;
   gap: 12px;
+  transition: opacity 0.35s ease, filter 0.35s ease;
+}
+
+/* Enquanto a moeda gira: botões sem seleção, apagados e desfocados */
+.busy {
+  opacity: 0.4;
+  filter: blur(1.5px);
+  pointer-events: none;
 }
 
 .button {
@@ -149,7 +156,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.button:hover { background: rgba(255, 200, 100, 0.18); }
+
+.button:disabled { cursor: default; }
+.button:hover:not(:disabled):not([aria-pressed='true']) { background: rgba(255, 200, 100, 0.18); }
 .button:active { transform: scale(0.96); }
 .button:focus-visible { outline: 2px solid #ffd27a; outline-offset: 3px; }
 

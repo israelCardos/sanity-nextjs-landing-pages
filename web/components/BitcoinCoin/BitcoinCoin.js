@@ -122,6 +122,9 @@ export default function BitcoinCoin ({
   const angle = useRef(0)
   const drag = useRef(null)
   const [side, setSide] = useState('coroa') // coroa = Bitcoin, cara = retrato
+  const [spinning, setSpinning] = useState(false)
+  const spinTimer = useRef(null)
+  useEffect(() => () => clearTimeout(spinTimer.current), [])
 
   // 1) Movimento do celular: quanto mais a pessoa mexe, mais a moeda reage.
   //    Física de mola: o movimento dá um "empurrão", a moeda balança e volta ao centro.
@@ -206,6 +209,7 @@ export default function BitcoinCoin ({
 
   // 2) Deslize forte do dedo vira a moeda
   const onPointerDown = e => {
+    if (spinning) return
     drag.current = {startX: e.clientX, startT: e.timeStamp, samples: [{x: e.clientX, t: e.timeStamp}]}
     if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
   }
@@ -240,19 +244,31 @@ export default function BitcoinCoin ({
     }
   }
 
-  // 3) Botões: joga a moeda pra cima e ela cai no lado escolhido
+  // 3) Botões: a moeda sobe girando forte e vai desacelerando até parar no lado escolhido
+  const SPIN_TURNS = 6 // voltas completas
+  const SPIN_TIME = 3400 // ms
+
   const toss = wanted => {
-    let next = angle.current + 720 // duas voltas completas
+    if (spinning) return
+    let next = angle.current + 360 * SPIN_TURNS
     if (sideOf(next) !== wanted) next += 180
     angle.current = next
-    setFlip(next, 'transform 1.3s cubic-bezier(.15, .7, .25, 1)')
-    setSide(wanted)
+    // começa rápido e desacelera suave, sem passar do ponto (para exatamente no lado)
+    setFlip(next, `transform ${SPIN_TIME}ms cubic-bezier(.33, 1, .68, 1)`)
+    setSpinning(true)
+
     const el = tossRef.current
     if (el) {
       el.classList.remove(styles.tossing)
       void el.offsetWidth // reinicia a animação do pulo
       el.classList.add(styles.tossing)
     }
+
+    clearTimeout(spinTimer.current)
+    spinTimer.current = setTimeout(() => {
+      setSpinning(false)
+      setSide(wanted)
+    }, SPIN_TIME)
   }
 
   const t = thickness || Math.round(size * 0.07)
@@ -290,11 +306,13 @@ export default function BitcoinCoin ({
       </div>
 
       {showButtons && (
-        <div className={styles.buttons}>
-          <button type='button' className={styles.button} aria-pressed={side === 'cara'} onClick={() => toss('cara')}>
+        <div className={`${styles.buttons} ${spinning ? styles.busy : ''}`} aria-busy={spinning}>
+          <button type='button' className={styles.button} disabled={spinning}
+            aria-pressed={!spinning && side === 'cara'} onClick={() => toss('cara')}>
             Cara
           </button>
-          <button type='button' className={styles.button} aria-pressed={side === 'coroa'} onClick={() => toss('coroa')}>
+          <button type='button' className={styles.button} disabled={spinning}
+            aria-pressed={!spinning && side === 'coroa'} onClick={() => toss('coroa')}>
             Coroa
           </button>
         </div>
