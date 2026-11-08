@@ -48,23 +48,6 @@ const SharedDefs = () => (
         <feComposite in='SourceGraphic' in2='si' operator='arithmetic' k2='1' k3='1' result='lit' />
         <feDropShadow dx='1.2' dy='1.6' stdDeviation='.8' floodColor='#4a2600' floodOpacity='.75' />
       </filter>
-    {/* Foto em relevo dourado: tons de cinza viram ouro e a luz cria volume */}
-    <filter id='btcPhoto' x='0' y='0' width='100%' height='100%' colorInterpolationFilters='sRGB'>
-      <feColorMatrix in='SourceGraphic' type='saturate' values='0' result='g' />
-      <feComponentTransfer in='g' result='gold'>
-        <feFuncR type='table' tableValues='.32 .78 1' />
-        <feFuncG type='table' tableValues='.15 .52 .9' />
-        <feFuncB type='table' tableValues='0 .12 .45' />
-      </feComponentTransfer>
-      <feColorMatrix in='g' type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0' result='h' />
-      <feGaussianBlur in='h' stdDeviation='.7' result='hb' />
-      <feSpecularLighting in='hb' surfaceScale='3' specularConstant='.9' specularExponent='18' lightingColor='#fff3cf' result='s'>
-        <feDistantLight azimuth='225' elevation='45' />
-      </feSpecularLighting>
-      <feComposite in='s' in2='SourceAlpha' operator='in' result='si' />
-      <feComposite in='gold' in2='si' operator='arithmetic' k2='1' k3='.7' result='lit' />
-      <feComposite in='lit' in2='SourceAlpha' operator='in' />
-    </filter>
     <clipPath id='btcPortrait'><circle cx='100' cy='100' r='62' /></clipPath>
   </React.Fragment>
 )
@@ -104,7 +87,7 @@ const CoinFace = ({side, text, image}) => {
       {side === 'back' && image && (
         <g clipPath='url(#btcPortrait)'>
           <image href={image} xlinkHref={image} x='38' y='38' width='124' height='124'
-            preserveAspectRatio='xMidYMid slice' filter='url(#btcPhoto)' />
+            preserveAspectRatio='xMidYMid slice' />
         </g>
       )}
       {side === 'back' && !image && (
@@ -128,8 +111,8 @@ export default function BitcoinCoin ({
   speed = 3,
   frontText = 'BITCOIN • 21 000 000 • PEER TO PEER • 2009 •',
   backText = 'IN CRYPTO WE TRUST • 21 000 000 • 2009 •',
-  backImage, // ex.: '/static/rosto.png' (PNG com fundo transparente fica melhor)
-  tiltStrength = 1, // quanto o movimento do celular inclina a moeda
+  backImage, // retrato já em relevo dourado, ex.: '/static/trump-moeda.png'
+  tiltStrength = 1.6, // quanto o movimento do celular inclina a moeda
   flipVelocity = 0.8 // velocidade mínima do dedo (px/ms) para virar a moeda
 }) {
   const tiltRef = useRef(null)
@@ -148,8 +131,8 @@ export default function BitcoinCoin ({
     let raf = null
 
     const loop = () => {
-      cur.x += (target.x - cur.x) * 0.1
-      cur.y += (target.y - cur.y) * 0.1
+      cur.x += (target.x - cur.x) * 0.14
+      cur.y += (target.y - cur.y) * 0.14
       if (tiltRef.current) {
         tiltRef.current.style.transform = `rotateX(${cur.x.toFixed(2)}deg) rotateY(${cur.y.toFixed(2)}deg)`
       }
@@ -160,8 +143,8 @@ export default function BitcoinCoin ({
     const onOrient = e => {
       if (e.gamma == null || e.beta == null) return
       if (base === null) base = e.beta // posição inicial do celular vira o "zero"
-      target.y = clamp(e.gamma, -45, 45) * 1.2 * tiltStrength
-      target.x = clamp(e.beta - base, -40, 40) * -0.7 * tiltStrength
+      target.y = clamp(clamp(e.gamma, -45, 45) * 1.2 * tiltStrength, -65, 65)
+      target.x = clamp(clamp(e.beta - base, -40, 40) * -0.8 * tiltStrength, -40, 40)
       if (!raf) raf = requestAnimationFrame(loop)
     }
 
@@ -191,7 +174,7 @@ export default function BitcoinCoin ({
   }
 
   const onPointerDown = e => {
-    drag.current = {startX: e.clientX, samples: [{x: e.clientX, t: e.timeStamp}]}
+    drag.current = {startX: e.clientX, startT: e.timeStamp, samples: [{x: e.clientX, t: e.timeStamp}]}
     if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
   }
 
@@ -212,12 +195,14 @@ export default function BitcoinCoin ({
     const first = recent[0] || d.samples[0]
     const dt = Math.max(e.timeStamp - first.t, 1)
     const v = (e.clientX - first.x) / dt
+    const sign = Math.sign(v) || Math.sign(dx)
     const dx = e.clientX - d.startX
 
-    if (Math.abs(v) >= flipVelocity && Math.abs(dx) > 30) {
+    const quickFlick = e.timeStamp - d.startT < 220 && Math.abs(dx) > 50
+    if ((Math.abs(v) >= flipVelocity && Math.abs(dx) > 30) || quickFlick) {
       // quanto mais forte, mais voltas (sempre termina mostrando o outro lado)
       const turns = Math.abs(v) > flipVelocity * 3 ? 3 : 1
-      angle.current += 180 * turns * Math.sign(v)
+      angle.current += 180 * turns * sign
       setFlip(angle.current, `transform ${0.8 + turns * 0.2}s cubic-bezier(.2, 1.3, .4, 1)`)
     } else {
       setFlip(angle.current, 'transform .5s cubic-bezier(.3, 1.4, .5, 1)')
