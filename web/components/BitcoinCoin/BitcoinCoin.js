@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react'
+import React, {useEffect, useRef, useState} from 'react'
 import styles from './BitcoinCoin.module.css'
 
 const LAYERS = 20
@@ -108,64 +108,93 @@ const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
 export default function BitcoinCoin ({
   size = 220,
   thickness,
-  speed = 3,
+  speed = 4,
   frontText = 'BITCOIN • 21 000 000 • PEER TO PEER • 2009 •',
   backText = 'IN CRYPTO WE TRUST • 21 000 000 • 2009 •',
   backImage, // retrato já em relevo dourado, ex.: '/static/trump-moeda.png'
-  tiltStrength = 1.6, // quanto o movimento do celular inclina a moeda
-  flipVelocity = 0.8 // velocidade mínima do dedo (px/ms) para virar a moeda
+  motionStrength = 1, // quanto o movimento do celular mexe a moeda
+  flipVelocity = 0.8, // velocidade mínima do dedo (px/ms) para virar a moeda
+  showButtons = true // botões "Cara" e "Coroa"
 }) {
   const tiltRef = useRef(null)
   const flipRef = useRef(null)
+  const tossRef = useRef(null)
   const angle = useRef(0)
   const drag = useRef(null)
+  const [side, setSide] = useState('coroa') // coroa = Bitcoin, cara = retrato
 
-  // 1) Inclinação pelo giroscópio do celular
+  // 1) Movimento do celular: quanto mais a pessoa mexe, mais a moeda reage.
+  //    Física de mola: o movimento dá um "empurrão", a moeda balança e volta ao centro.
   useEffect(() => {
-    if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) return
+    if (typeof window === 'undefined') return
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
+    const pos = {x: 0, y: 0}
+    const vel = {x: 0, y: 0}
     const target = {x: 0, y: 0}
-    const cur = {x: 0, y: 0}
-    let base = null
+    const base = {beta: null, gamma: null}
     let raf = null
+    let last = 0
 
-    const loop = () => {
-      cur.x += (target.x - cur.x) * 0.14
-      cur.y += (target.y - cur.y) * 0.14
-      if (tiltRef.current) {
-        tiltRef.current.style.transform = `rotateX(${cur.x.toFixed(2)}deg) rotateY(${cur.y.toFixed(2)}deg)`
+    const STIFFNESS = 55 // força que puxa de volta ao centro
+    const DAMPING = 6 // quanto menor, mais a moeda "chacoalha"
+
+    const loop = now => {
+      const dt = Math.min((now - (last || now)) / 1000, 0.04) || 0.016
+      last = now
+      for (const k of ['x', 'y']) {
+        const acc = -STIFFNESS * (pos[k] - target[k]) - DAMPING * vel[k]
+        vel[k] += acc * dt
+        pos[k] = clamp(pos[k] + vel[k] * dt, -70, 70)
       }
-      const done = Math.abs(target.x - cur.x) < 0.05 && Math.abs(target.y - cur.y) < 0.05
-      raf = done ? null : requestAnimationFrame(loop)
+      if (tiltRef.current) {
+        tiltRef.current.style.transform = `rotateX(${pos.x.toFixed(2)}deg) rotateY(${pos.y.toFixed(2)}deg)`
+      }
+      const still = Math.abs(vel.x) + Math.abs(vel.y) < 0.05 &&
+        Math.abs(pos.x - target.x) + Math.abs(pos.y - target.y) < 0.05
+      raf = still ? null : requestAnimationFrame(loop)
+    }
+    const wake = () => { if (!raf) { last = 0; raf = requestAnimationFrame(loop) } }
+
+    // Inclinação: reage à MUDANÇA de posição e volta ao centro quando o celular para
+    const onOrient = e => {
+      if (e.beta == null || e.gamma == null) return
+      if (base.beta === null) { base.beta = e.beta; base.gamma = e.gamma }
+      base.beta += (e.beta - base.beta) * 0.03
+      base.gamma += (e.gamma - base.gamma) * 0.03
+      target.x = clamp((e.beta - base.beta) * -1.4 * motionStrength, -45, 45)
+      target.y = clamp((e.gamma - base.gamma) * 1.8 * motionStrength, -60, 60)
+      wake()
     }
 
-    const onOrient = e => {
-      if (e.gamma == null || e.beta == null) return
-      if (base === null) base = e.beta // posição inicial do celular vira o "zero"
-      target.y = clamp(clamp(e.gamma, -45, 45) * 1.2 * tiltStrength, -65, 65)
-      target.x = clamp(clamp(e.beta - base, -40, 40) * -0.8 * tiltStrength, -40, 40)
-      if (!raf) raf = requestAnimationFrame(loop)
+    // Giro e chacoalhada do celular dão impulso direto na moeda
+    const onMotion = e => {
+      const r = e.rotationRate || {}
+      const a = e.acceleration || {}
+      const kick = 0.9 * motionStrength
+      vel.x += clamp((r.beta || 0) * -kick, -120, 120)
+      vel.y += clamp((r.gamma || 0) * kick + (a.x || 0) * 12 * motionStrength, -160, 160)
+      if (Math.abs(r.beta || 0) + Math.abs(r.gamma || 0) + Math.abs(a.x || 0) > 2) wake()
     }
 
     // iPhone exige permissão, pedida no primeiro toque na página
     const askPermission = () => {
-      const DOE = window.DeviceOrientationEvent
-      if (DOE && typeof DOE.requestPermission === 'function') {
-        DOE.requestPermission().catch(() => {})
-      }
+      [window.DeviceOrientationEvent, window.DeviceMotionEvent].forEach(Evt => {
+        if (Evt && typeof Evt.requestPermission === 'function') Evt.requestPermission().catch(() => {})
+      })
     }
 
     window.addEventListener('deviceorientation', onOrient)
+    window.addEventListener('devicemotion', onMotion)
     document.addEventListener('touchend', askPermission, {once: true})
     return () => {
       window.removeEventListener('deviceorientation', onOrient)
+      window.removeEventListener('devicemotion', onMotion)
       document.removeEventListener('touchend', askPermission)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [tiltStrength])
+  }, [motionStrength])
 
-  // 2) Deslize forte do dedo vira a moeda
   const setFlip = (deg, transition) => {
     const el = flipRef.current
     if (!el) return
@@ -173,6 +202,9 @@ export default function BitcoinCoin ({
     el.style.transform = `rotateY(${deg}deg)`
   }
 
+  const sideOf = deg => (Math.round(deg / 180) % 2 === 0 ? 'coroa' : 'cara')
+
+  // 2) Deslize forte do dedo vira a moeda
   const onPointerDown = e => {
     drag.current = {startX: e.clientX, startT: e.timeStamp, samples: [{x: e.clientX, t: e.timeStamp}]}
     if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId)
@@ -183,7 +215,6 @@ export default function BitcoinCoin ({
     if (!d) return
     d.samples.push({x: e.clientX, t: e.timeStamp})
     if (d.samples.length > 8) d.samples.shift()
-    // acompanha o dedo um pouco, para mostrar que dá pra girar
     setFlip(angle.current + clamp((e.clientX - d.startX) * 0.35, -55, 55), 'none')
   }
 
@@ -194,18 +225,33 @@ export default function BitcoinCoin ({
     const recent = d.samples.filter(s => e.timeStamp - s.t < 120)
     const first = recent[0] || d.samples[0]
     const dt = Math.max(e.timeStamp - first.t, 1)
+    const dx = e.clientX - d.startX
     const v = (e.clientX - first.x) / dt
     const sign = Math.sign(v) || Math.sign(dx)
-    const dx = e.clientX - d.startX
-
     const quickFlick = e.timeStamp - d.startT < 220 && Math.abs(dx) > 50
+
     if ((Math.abs(v) >= flipVelocity && Math.abs(dx) > 30) || quickFlick) {
-      // quanto mais forte, mais voltas (sempre termina mostrando o outro lado)
       const turns = Math.abs(v) > flipVelocity * 3 ? 3 : 1
       angle.current += 180 * turns * sign
       setFlip(angle.current, `transform ${0.8 + turns * 0.2}s cubic-bezier(.2, 1.3, .4, 1)`)
+      setSide(sideOf(angle.current))
     } else {
       setFlip(angle.current, 'transform .5s cubic-bezier(.3, 1.4, .5, 1)')
+    }
+  }
+
+  // 3) Botões: joga a moeda pra cima e ela cai no lado escolhido
+  const toss = wanted => {
+    let next = angle.current + 720 // duas voltas completas
+    if (sideOf(next) !== wanted) next += 180
+    angle.current = next
+    setFlip(next, 'transform 1.3s cubic-bezier(.15, .7, .25, 1)')
+    setSide(wanted)
+    const el = tossRef.current
+    if (el) {
+      el.classList.remove(styles.tossing)
+      void el.offsetWidth // reinicia a animação do pulo
+      el.classList.add(styles.tossing)
     }
   }
 
@@ -217,28 +263,42 @@ export default function BitcoinCoin ({
   }
 
   return (
-    <div
-      className={styles.scene}
-      role='img'
-      aria-label='Moeda de Bitcoin. Deslize rápido para virar.'
-      style={{'--size': `${size}px`, '--thickness': `${t}px`, '--speed': `${speed}s`}}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-    >
-      <div className={styles.float}>
-        <div className={styles.tilt} ref={tiltRef}>
-          <div className={styles.flip} ref={flipRef}>
-            <div className={styles.coin}>
-              {layers}
-              <div className={`${styles.face} ${styles.front}`}><CoinFace side='front' text={frontText} /></div>
-              <div className={`${styles.face} ${styles.back}`}><CoinFace side='back' text={backText} image={backImage} /></div>
+    <div className={styles.root} style={{'--size': `${size}px`, '--thickness': `${t}px`, '--speed': `${speed}s`}}>
+      <div
+        className={styles.scene}
+        role='img'
+        aria-label={`Moeda mostrando ${side}. Deslize rápido para virar.`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <div className={styles.float}>
+          <div className={styles.toss} ref={tossRef}>
+            <div className={styles.tilt} ref={tiltRef}>
+              <div className={styles.flip} ref={flipRef}>
+                <div className={styles.coin}>
+                  {layers}
+                  <div className={`${styles.face} ${styles.front}`}><CoinFace side='front' text={frontText} /></div>
+                  <div className={`${styles.face} ${styles.back}`}><CoinFace side='back' text={backText} image={backImage} /></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        <div className={styles.shadow} />
       </div>
-      <div className={styles.shadow} />
+
+      {showButtons && (
+        <div className={styles.buttons}>
+          <button type='button' className={styles.button} aria-pressed={side === 'cara'} onClick={() => toss('cara')}>
+            Cara
+          </button>
+          <button type='button' className={styles.button} aria-pressed={side === 'coroa'} onClick={() => toss('coroa')}>
+            Coroa
+          </button>
+        </div>
+      )}
     </div>
   )
 }
