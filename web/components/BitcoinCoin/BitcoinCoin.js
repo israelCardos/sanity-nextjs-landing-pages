@@ -104,6 +104,39 @@ const CoinFace = ({side, text, image}) => {
 }
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+const fmt = n => Math.round(n).toLocaleString('pt-BR')
+
+// Número que "corre" até o novo valor (só ele re-renderiza, não a moeda)
+function AnimatedNumber ({value, duration = 700}) {
+  const [shown, setShown] = useState(value)
+  const from = useRef(value)
+  useEffect(() => {
+    const start = from.current
+    if (start === value) return
+    let raf
+    const t0 = performance.now()
+    const step = now => {
+      const k = Math.min((now - t0) / duration, 1)
+      const eased = 1 - Math.pow(1 - k, 3)
+      const v = start + (value - start) * eased
+      from.current = v
+      setShown(v)
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value, duration])
+  return <span>{fmt(shown)}</span>
+}
+
+const WalletIcon = () => (
+  <svg className={styles.walletIcon} viewBox='0 0 24 24' aria-hidden='true'>
+    <path d='M4 7.5A2.5 2.5 0 0 1 6.5 5H17a1 1 0 0 1 1 1v1.5' fill='none' stroke='currentColor' strokeWidth='1.6' strokeLinecap='round' />
+    <rect x='3.5' y='7.5' width='17' height='12' rx='2.5' fill='none' stroke='currentColor' strokeWidth='1.6' />
+    <path d='M20.5 11.5h-3.25a1.75 1.75 0 0 0 0 3.5h3.25' fill='none' stroke='currentColor' strokeWidth='1.6' />
+    <circle cx='17.4' cy='13.25' r='.9' fill='currentColor' />
+  </svg>
+)
 
 export default function BitcoinCoin ({
   size = 220,
@@ -114,7 +147,9 @@ export default function BitcoinCoin ({
   backImage, // retrato já em relevo dourado, ex.: '/static/trump-moeda.png'
   motionStrength = 1, // quanto o movimento do celular mexe a moeda
   flipVelocity = 0.8, // velocidade mínima do dedo (px/ms) para virar a moeda
-  showButtons = true // botões "Cara" e "Coroa"
+  showButtons = true, // botões "Cara" e "Coroa" + carteira
+  initialBalance = 1000, // saldo inicial da carteira (simulado, em satoshis)
+  bet = 5 // aposta por rodada (satoshis)
 }) {
   const tiltRef = useRef(null)
   const flipRef = useRef(null)
@@ -124,7 +159,9 @@ export default function BitcoinCoin ({
   const [side, setSide] = useState('coroa') // coroa = Bitcoin, cara = retrato
   const [spinning, setSpinning] = useState(false)
   const [pick, setPick] = useState(null) // lado que a pessoa escolheu
-  const [outcome, setOutcome] = useState(null) // {win, side} depois que a moeda para
+  const [outcome, setOutcome] = useState(null) // {id, win, side} depois que a moeda para
+  const [balance, setBalance] = useState(initialBalance) // carteira simulada
+  const [delta, setDelta] = useState(null) // {id, amount} para o "-5" / "+10" que sobe
   const sceneRef = useRef(null)
   const spinTimer = useRef(null)
   useEffect(() => () => clearTimeout(spinTimer.current), [])
@@ -261,7 +298,7 @@ export default function BitcoinCoin ({
   }
 
   const toss = wanted => {
-    if (spinning) return
+    if (spinning || balance < bet) return
     const result = Math.random() < 0.5 ? 'cara' : 'coroa'
     let next = angle.current + 360 * SPIN_TURNS
     if (sideOf(next) !== result) next += 180
@@ -271,6 +308,9 @@ export default function BitcoinCoin ({
     setPick(wanted)
     setOutcome(null)
     setSpinning(true)
+    // aposta sai da carteira na hora
+    setBalance(b => b - bet)
+    setDelta({id: Date.now(), amount: -bet})
 
     restart(tossRef.current, styles.tossing) // pulo + inclinação da câmera
     restart(sceneRef.current, styles.camera) // câmera aproxima e volta
@@ -279,7 +319,13 @@ export default function BitcoinCoin ({
     spinTimer.current = setTimeout(() => {
       setSpinning(false)
       setSide(result)
-      setOutcome({win: result === wanted, side: result})
+      const win = result === wanted
+      setOutcome({id: Date.now(), win, side: result})
+      if (win) {
+        // ganhou: volta a aposta + o prêmio
+        setBalance(b => b + bet * 2)
+        setDelta({id: Date.now(), amount: bet * 2})
+      }
     }, SPIN_TIME)
   }
 
@@ -296,6 +342,21 @@ export default function BitcoinCoin ({
       className={styles.root}
       style={{'--size': `${size}px`, '--thickness': `${t}px`, '--speed': `${speed}s`, '--spin': `${SPIN_TIME}ms`}}
     >
+      {showButtons && (
+        <div className={styles.wallet}>
+          <WalletIcon />
+          <span className={styles.walletBalance}>
+            <AnimatedNumber value={balance} /> <small>sats</small>
+          </span>
+          {delta && (
+            <span key={delta.id} className={`${styles.delta} ${delta.amount < 0 ? styles.deltaMinus : styles.deltaPlus}`}>
+              {delta.amount > 0 ? '+' : '−'}{Math.abs(delta.amount)}
+            </span>
+          )}
+          <span className={styles.walletMeta}>{bet} sats/rodada · simulado</span>
+        </div>
+      )}
+
       <div
         ref={sceneRef}
         className={styles.scene}
@@ -320,29 +381,36 @@ export default function BitcoinCoin ({
           </div>
         </div>
         <div className={styles.shadow} />
+
+        {outcome && (
+          <div key={outcome.id} className={`${styles.popup} ${outcome.win ? styles.win : styles.lose}`}>
+            <strong>{outcome.win ? 'Acertou' : 'Errou'}</strong>
+            <span>Deu {outcome.side} · {outcome.win ? '+' : '−'}{bet} sats</span>
+          </div>
+        )}
       </div>
 
-      {showButtons && (
-        <p className={`${styles.result} ${outcome ? (outcome.win ? styles.win : styles.lose) : ''}`} aria-live='polite'>
-          {outcome && (
-            <React.Fragment>
-              <strong>{outcome.win ? 'Acertou!' : 'Errou!'}</strong> Deu {outcome.side}.
-            </React.Fragment>
-          )}
-        </p>
-      )}
+      <span className={styles.srOnly} aria-live='polite'>
+        {outcome ? `${outcome.win ? 'Acertou' : 'Errou'}. Deu ${outcome.side}. Saldo ${fmt(balance)} satoshis.` : ''}
+      </span>
 
       {showButtons && (
         <div className={`${styles.buttons} ${spinning ? styles.busy : ''}`} aria-busy={spinning}>
-          <button type='button' className={styles.button} disabled={spinning}
+          <button type='button' className={styles.button} disabled={spinning || balance < bet}
             aria-pressed={!spinning && pick === 'cara'} onClick={() => toss('cara')}>
             Cara
           </button>
-          <button type='button' className={styles.button} disabled={spinning}
+          <button type='button' className={styles.button} disabled={spinning || balance < bet}
             aria-pressed={!spinning && pick === 'coroa'} onClick={() => toss('coroa')}>
             Coroa
           </button>
         </div>
+      )}
+
+      {showButtons && balance < bet && !spinning && (
+        <button type='button' className={styles.refill} onClick={() => setBalance(initialBalance)}>
+          Saldo acabou · recarregar {fmt(initialBalance)} sats (simulado)
+        </button>
       )}
     </div>
   )
