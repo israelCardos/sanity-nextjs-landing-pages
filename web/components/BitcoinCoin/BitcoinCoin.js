@@ -13,7 +13,7 @@ const BitcoinLogo = () => (
   </svg>
 )
 
-function BitcoinCoin ({size = 200, thickness, speed = 4}) {
+function BitcoinCoin ({size = 200, thickness, speed = 3}) {
   const t = thickness || Math.round(size * 0.08)
   const layers = []
   for (let i = 0; i < LAYERS; i++) {
@@ -26,17 +26,20 @@ function BitcoinCoin ({size = 200, thickness, speed = 4}) {
       className={styles.scene}
       style={{'--size': `${size}px`, '--thickness': `${t}px`, '--speed': `${speed}s`}}
       role='img'
-      aria-label='Moeda de Bitcoin girando'
+      aria-label='Moeda de Bitcoin flutuando'
     >
-      <div className={styles.coin}>
-        {layers}
-        <div className={`${styles.face} ${styles.front}`}>
-          <BitcoinLogo />
-        </div>
-        <div className={`${styles.face} ${styles.back}`}>
-          <BitcoinLogo />
+      <div className={styles.float}>
+        <div className={styles.coin}>
+          {layers}
+          <div className={`${styles.face} ${styles.front}`}>
+            <BitcoinLogo />
+          </div>
+          <div className={`${styles.face} ${styles.back}`}>
+            <BitcoinLogo />
+          </div>
         </div>
       </div>
+      <div className={styles.shadow} />
     </div>
   )
 }
